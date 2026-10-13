@@ -298,7 +298,6 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     main_color = Color3.fromRGB(128, 128, 128),
     min_size = Vector2.new(500, 400),
     can_resize = false
-})
 
 -- Rainbow Color3 Loop Effect
 task.spawn(function()
@@ -316,7 +315,7 @@ task.spawn(function()
         task.wait(0.03)
     end
 end)
-
+})
 local privacyRedactor = createPrivacyRedactor(lp.player, "Farming")
 
 _G.SilenceFarmingTitleGeneration = (_G.SilenceFarmingTitleGeneration or 0) + 1
