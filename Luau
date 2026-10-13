@@ -298,23 +298,6 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     main_color = Color3.fromRGB(128, 128, 128),
     min_size = Vector2.new(500, 400),
     can_resize = false
-
--- Rainbow Color3 Loop Effect
-task.spawn(function()
-    local tickTime = 0
-    while true do
-        tickTime = tickTime + 0.03
-        
-        -- Kinakalkula ang rainbow color gamit ang HSV galing sa RGB base
-        local rainbowColor = Color3.fromHSV((tickTime % 5) / 5, 1, 1)
-        
-        pcall(function()
-            silence.main_color = rainbowColor
-        end)
-        
-        task.wait(0.03)
-    end
-end)
 })
 local privacyRedactor = createPrivacyRedactor(lp.player, "Farming")
 
