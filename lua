@@ -793,10 +793,6 @@ task.spawn(function()
     end
 end)
 
-tabs.rebirths:AddLabel("No Private Server? No Problem")
-tabs.rebirths:AddLabel("You can grind strength or Rebirths on a public server without getting killed by them.").TextSize = 12
-tabs.rebirths:AddLabel("You need to enter first—the standard way of entering the Hallowed Gym").TextSize = 14
-tabs.rebirths:AddLabel("then activate/turn on Auto Hallowed Gym, so no one can kill you").TextSize = 14
 tabs.rebirths:AddLabel("This only works with the normal auto-lift; it doesn't work with the Hallowed lift and Squat").TextSize = 12
 
 tabs.rebirths:AddSwitch("Auto Hallowed Gym (Anti Kill for Grinding)", function(bool)
