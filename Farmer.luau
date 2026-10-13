@@ -299,6 +299,48 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     min_size = Vector2.new(500, 400),
     can_resize = false
 })
+
+-- Rainbow & Glitch Animation Effect
+task.spawn(function()
+    local baseTitle = "M14EBR | Paid Version - Fast Farming"
+    local glitchChars = {"#", "@", "$", "%", "&", "!", "?", "/", "\\", "|", "1", "0"}
+    local tickTime = 0
+    
+    while true do
+        tickTime = tickTime + 0.05
+        
+        -- 1. Rainbow Color3 galing sa RGB (gamit ang tick() para sa smooth color transition)
+        local rainbowColor = Color3.fromHSV((tickTime % 5) / 5, 1, 1)
+        
+        -- I-update ang main color / title bar color (depende sa UI library structure mo, kadalasang main_color o window reference ang binabago)
+        pcall(function()
+            silence.main_color = rainbowColor
+            -- Kung may direct function ang library mo para sa title bar color, pwede mo rin ilagay dito
+        end)
+        
+        -- 2. Glitch Title Animation (paminsan-minsan ay nag-glitch ang teksto)
+        if math.random(1, 10) == 1 then
+            local glitchedTitle = ""
+            for i = 1, #baseTitle do
+                if math.random(1, 5) == 1 then
+                    glitchedTitle = glitchedTitle .. glitchChars[math.random(1, #glitchChars)]
+                else
+                    glitchedTitle = glitchedTitle .. baseTitle:sub(i, i)
+                end
+            end
+            pcall(function()
+                silence:SetTitle(glitchedTitle) -- O depende sa function ng library mo para mapalitan ang title (hal. silence.Title = ...)
+            end)
+            task.wait(0.08) -- Bilis ng glitch effect
+            pcall(function()
+                silence:SetTitle(baseTitle)
+            end)
+        end
+        
+        task.wait(0.05)
+    end
+end)
+
 local privacyRedactor = createPrivacyRedactor(lp.player, "Farming")
 
 _G.SilenceFarmingTitleGeneration = (_G.SilenceFarmingTitleGeneration or 0) + 1
