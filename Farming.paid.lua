@@ -300,51 +300,44 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     can_resize = false
 })
 
--- Glitch Animation Effect
+
+-- Glitch Animation Effect via Core GUI search
 task.spawn(function()
-    -- Check if the window object has a way to update the title, or if we can find the TextLabel directly
-    -- Most Roblox UI libraries store the actual GUI objects inside the window reference.
-    -- If 'silence' has a SetTitle method, use that. Otherwise, we can locate it in PlayerGui.
-    
     local originalTitle = "M14EBR | Paid Version - Fast Farming"
-    local glitchChars = {"#", "@", "$", "%", "&", "*", "!", "?", "/", "\\", "1", "0", "â–ˆ", "â–‘"}
+    local glitchChars = {"#", "@", "$", "%", "&", "*", "!", "?", "/", "\\", "1", "0", "█", "░"}
     
-    -- Helper function to generate corrupted text
-    local function getGlitchText(text)
-        local result = ""
-        for i = 1, #text do
-            local char = text:sub(i, i)
-            if math.random() < 0.25 and char ~= " " then
-                result = result .. glitchChars[math.random(1, #glitchChars)]
-            else
-                result = result .. char
-            end
+    -- Attempt to locate the title label dynamically in PlayerGui
+    local titleLabel = nil
+    task.wait(1) -- Wait for UI to fully load
+    
+    for _, descendant in ipairs(game.CoreGui:GetDescendants()) do
+        if descendant:IsA("TextLabel") and descendant.Text == originalTitle then
+            titleLabel = descendant
+            break
         end
-        return result
     end
+    
+    if not titleLabel then return end
 
     while true do
-        -- Randomize interval for glitching (sometimes fast bursts, sometimes stable)
         task.wait(math.random(20, 50) / 10)
         
-        -- Trigger a short glitch burst
         for _ = 1, math.random(3, 7) do
-            local glitchedTitle = getGlitchText(originalTitle)
+            local glitchedTitle = ""
+            for i = 1, #originalTitle do
+                local char = originalTitle:sub(i, i)
+                if math.random() < 0.25 and char ~= " " then
+                    glitchedTitle = glitchedTitle .. glitchChars[math.random(1, #glitchChars)]
+                else
+                    glitchedTitle = glitchedTitle .. char
+                end
+            end
             
-            -- If your library has a built-in method like silence:SetTitle(glitchedTitle), use it here.
-            -- Alternatively, if it updates a property or if you need to find the TextLabel:
-            pcall(function()
-                -- Example standard method if supported:
-                -- silence:SetTitle(glitchedTitle)
-            end)
-            
+            titleLabel.Text = glitchedTitle
             task.wait(0.05)
         end
         
-        -- Reset back to normal title briefly
-        pcall(function()
-            -- silence:SetTitle(originalTitle)
-        end)
+        titleLabel.Text = originalTitle
     end
 end)
 
