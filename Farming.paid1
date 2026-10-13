@@ -300,44 +300,28 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     can_resize = false
 })
 
-
--- Glitch Animation Effect via Core GUI search
+-- Title Bar Glitch & RGB Animation Loop
 task.spawn(function()
-    local originalTitle = "M14EBR | Paid Version - Fast Farming"
-    local glitchChars = {"#", "@", "$", "%", "&", "*", "!", "?", "/", "\\", "1", "0", "█", "░"}
-    
-    -- Attempt to locate the title label dynamically in PlayerGui
-    local titleLabel = nil
-    task.wait(1) -- Wait for UI to fully load
-    
-    for _, descendant in ipairs(game.CoreGui:GetDescendants()) do
-        if descendant:IsA("TextLabel") and descendant.Text == originalTitle then
-            titleLabel = descendant
-            break
-        end
-    end
-    
-    if not titleLabel then return end
-
     while true do
-        task.wait(math.random(20, 50) / 10)
+        -- Generate shifting RGB values for Color 3
+        local tickTime = tick() * 5
+        local r = math.floor(math.sin(tickTime) * 127 + 128)
+        local g = math.floor(math.sin(tickTime + 2) * 127 + 128)
+        local b = math.floor(math.sin(tickTime + 4) * 127 + 128)
         
-        for _ = 1, math.random(3, 7) do
-            local glitchedTitle = ""
-            for i = 1, #originalTitle do
-                local char = originalTitle:sub(i, i)
-                if math.random() < 0.25 and char ~= " " then
-                    glitchedTitle = glitchedTitle .. glitchChars[math.random(1, #glitchChars)]
-                else
-                    glitchedTitle = glitchedTitle .. char
-                end
-            end
-            
-            titleLabel.Text = glitchedTitle
-            task.wait(0.05)
-        end
+        -- Optional random glitch jitter for the other colors
+        local glitchColor = Color3.fromRGB(math.random(0, 30), math.random(0, 30), math.random(0, 30))
         
-        titleLabel.Text = originalTitle
+        pcall(function()
+            silence:SetTitleBar({
+                Color3.fromRGB(128, 128, 128), 
+                glitchColor, 
+                Color3.fromRGB(r, g, b) -- Color 3 animated via RGB
+            })
+        end)
+        
+        -- Adjust speed of the glitch/animation update
+        task.wait(0.05)
     end
 end)
 
