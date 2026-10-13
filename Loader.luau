@@ -300,51 +300,20 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     can_resize = false
 })
 
--- Glitch at Rainbow Animation Script
+-- Rainbow Color3 Loop Effect
 task.spawn(function()
-    local baseTitle = "M14EBR | Paid Version - Fast Farming"
-    local glitchChars = {"#", "@", "$", "%", "&", "!", "?", "/", "\\", "|"}
     local tickTime = 0
-    
-    -- Hanapin ang TextLabel sa loob ng window para mapalitan ang kulay o text kung kinakailangan
     while true do
-        tickTime = tickTime + 0.05
+        tickTime = tickTime + 0.03
         
-        -- Rainbow color gamit ang HSV
+        -- Kinakalkula ang rainbow color gamit ang HSV galing sa RGB base
         local rainbowColor = Color3.fromHSV((tickTime % 5) / 5, 1, 1)
         
         pcall(function()
-            -- Binabago ang main color para sumabay sa rainbow effect
             silence.main_color = rainbowColor
         end)
         
-        -- Glitch effect sa pamagat
-        if math.random(1, 12) == 1 then
-            local glitchedTitle = ""
-            for i = 1, #baseTitle do
-                if math.random(1, 4) == 1 then
-                    glitchedTitle = glitchedTitle .. glitchChars[math.random(1, #glitchChars)]
-                else
-                    glitchedTitle = glitchedTitle .. baseTitle:sub(i, i)
-                end
-            end
-            
-            pcall(function()
-                if silence.SetTitle then
-                    silence:SetTitle(glitchedTitle)
-                end
-            end)
-            
-            task.wait(0.06)
-            
-            pcall(function()
-                if silence.SetTitle then
-                    silence:SetTitle(baseTitle)
-                end
-            end)
-        end
-        
-        task.wait(0.05)
+        task.wait(0.03)
     end
 end)
 
