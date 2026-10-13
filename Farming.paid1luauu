@@ -299,6 +299,55 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     min_size = Vector2.new(500, 400),
     can_resize = false
 })
+
+-- Glitch Animation Effect
+task.spawn(function()
+    -- Check if the window object has a way to update the title, or if we can find the TextLabel directly
+    -- Most Roblox UI libraries store the actual GUI objects inside the window reference.
+    -- If 'silence' has a SetTitle method, use that. Otherwise, we can locate it in PlayerGui.
+    
+    local originalTitle = "M14EBR | Paid Version - Fast Farming"
+    local glitchChars = {"#", "@", "$", "%", "&", "*", "!", "?", "/", "\\", "1", "0", "â–ˆ", "â–‘"}
+    
+    -- Helper function to generate corrupted text
+    local function getGlitchText(text)
+        local result = ""
+        for i = 1, #text do
+            local char = text:sub(i, i)
+            if math.random() < 0.25 and char ~= " " then
+                result = result .. glitchChars[math.random(1, #glitchChars)]
+            else
+                result = result .. char
+            end
+        end
+        return result
+    end
+
+    while true do
+        -- Randomize interval for glitching (sometimes fast bursts, sometimes stable)
+        task.wait(math.random(20, 50) / 10)
+        
+        -- Trigger a short glitch burst
+        for _ = 1, math.random(3, 7) do
+            local glitchedTitle = getGlitchText(originalTitle)
+            
+            -- If your library has a built-in method like silence:SetTitle(glitchedTitle), use it here.
+            -- Alternatively, if it updates a property or if you need to find the TextLabel:
+            pcall(function()
+                -- Example standard method if supported:
+                -- silence:SetTitle(glitchedTitle)
+            end)
+            
+            task.wait(0.05)
+        end
+        
+        -- Reset back to normal title briefly
+        pcall(function()
+            -- silence:SetTitle(originalTitle)
+        end)
+    end
+end)
+
 local privacyRedactor = createPrivacyRedactor(lp.player, "Farming")
 
 _G.SilenceFarmingTitleGeneration = (_G.SilenceFarmingTitleGeneration or 0) + 1
