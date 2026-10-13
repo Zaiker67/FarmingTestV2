@@ -300,40 +300,47 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     can_resize = false
 })
 
--- Rainbow & Glitch Animation Effect
+-- Glitch at Rainbow Animation Script
 task.spawn(function()
     local baseTitle = "M14EBR | Paid Version - Fast Farming"
-    local glitchChars = {"#", "@", "$", "%", "&", "!", "?", "/", "\\", "|", "1", "0"}
+    local glitchChars = {"#", "@", "$", "%", "&", "!", "?", "/", "\\", "|"}
     local tickTime = 0
     
+    -- Hanapin ang TextLabel sa loob ng window para mapalitan ang kulay o text kung kinakailangan
     while true do
         tickTime = tickTime + 0.05
         
-        -- 1. Rainbow Color3 galing sa RGB (gamit ang tick() para sa smooth color transition)
+        -- Rainbow color gamit ang HSV
         local rainbowColor = Color3.fromHSV((tickTime % 5) / 5, 1, 1)
         
-        -- I-update ang main color / title bar color (depende sa UI library structure mo, kadalasang main_color o window reference ang binabago)
         pcall(function()
+            -- Binabago ang main color para sumabay sa rainbow effect
             silence.main_color = rainbowColor
-            -- Kung may direct function ang library mo para sa title bar color, pwede mo rin ilagay dito
         end)
         
-        -- 2. Glitch Title Animation (paminsan-minsan ay nag-glitch ang teksto)
-        if math.random(1, 10) == 1 then
+        -- Glitch effect sa pamagat
+        if math.random(1, 12) == 1 then
             local glitchedTitle = ""
             for i = 1, #baseTitle do
-                if math.random(1, 5) == 1 then
+                if math.random(1, 4) == 1 then
                     glitchedTitle = glitchedTitle .. glitchChars[math.random(1, #glitchChars)]
                 else
                     glitchedTitle = glitchedTitle .. baseTitle:sub(i, i)
                 end
             end
+            
             pcall(function()
-                silence:SetTitle(glitchedTitle) -- O depende sa function ng library mo para mapalitan ang title (hal. silence.Title = ...)
+                if silence.SetTitle then
+                    silence:SetTitle(glitchedTitle)
+                end
             end)
-            task.wait(0.08) -- Bilis ng glitch effect
+            
+            task.wait(0.06)
+            
             pcall(function()
-                silence:SetTitle(baseTitle)
+                if silence.SetTitle then
+                    silence:SetTitle(baseTitle)
+                end
             end)
         end
         
