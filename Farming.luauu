@@ -300,69 +300,37 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     can_resize = false
 })
 
--- TITLE BAR GLITCH ANIMATION
-task.spawn(function()
-    task.wait(1.5)
-    local titleLabel = nil
-    for _, area in pairs({game:GetService("CoreGui"), game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")}) do
-        if area then
-            for _, v in pairs(area:GetDescendants()) do
-                if v:IsA("TextLabel") and (string.find(v.Text,"K13") or string.find(v.Text,"Muscle") or string.find(v.Text,"PrimeJelo")) then
-                    if not v:FindFirstAncestorOfClass("ScrollingFrame") then
-                        titleLabel = v
-                        break
-                    end
-                end
-            end
-        end
-        if titleLabel then break end
+-- Rainbow RGB & Title Bar Glitch Loop
+local tickValue = 0
+runService.RenderStepped:Connect(function(dt)
+    tickValue = tickValue + dt
+    
+    -- 1. Rainbow RGB effect for main_color (loops through hue every 5 seconds)
+    local hue = (tickValue % 5) / 5
+    local rainbowColor = Color3.fromHSV(hue, 1, 1)
+    
+    if silence and silence.SetMainColor then
+        silence:SetMainColor(rainbowColor)
     end
-    if titleLabel then
-        titleLabel.RichText = true
-        titleLabel.Font = Enum.Font.PermanentMarker
-        local colorSets = {
-            {{255,0,0},{0,0,0},{180,0,0}},
-            {{0,0,0},{255,0,0},{0,0,0}},
-            {{255,255,255},{255,0,0},{0,0,0}},
-            {{180,0,0},{255,255,255},{255,0,0}},
-            {{0,0,0},{0,0,0},{255,50,50}},
-            {{255,50,50},{0,0,0},{255,255,255}},
-            {{100,0,0},{255,0,0},{0,0,0}},
-            {{255,0,0},{255,0,0},{255,0,0}},
-        }
-        local glitching = false
-        local glitchTimer = 0
-        local glitchDuration = 0
-        local currentColorSet = colorSets[1]
-        while true do
-            local t = tick()
-            if not glitching and math.random(1,100) <= 3 then
-                glitching = true
-                glitchDuration = math.random(8,20)
-                glitchTimer = 0
-            end
-            if glitching then
-                glitchTimer = glitchTimer + 1
-                currentColorSet = colorSets[math.random(1,#colorSets)]
-                local c1,c2,c3 = currentColorSet[1],currentColorSet[2],currentColorSet[3]
-                titleLabel.TextColor3 = Color3.fromRGB(c1[1],c1[2],c1[3])
-                titleLabel.TextStrokeColor3 = Color3.fromRGB(c2[1],c2[2],c2[3])
-                titleLabel.TextStrokeTransparency = math.random(0,6)/10
-                titleLabel.Text = string.format(
-                    "<b><font color='rgb(%d,%d,%d)'>M14EBR</font></b>  |  <font color='rgb(%d,%d,%d)'>Paid Version - Fast Farming</font>",
-                    c1[1],c1[2],c1[3], c2[1],c2[2],c2[3]
-                )
-                if glitchTimer >= glitchDuration then glitching = false end
-                task.wait(0.03)
-            else
-                local blink = math.abs(math.sin(t*4))
-                local r = math.floor(255*blink)
-                titleLabel.TextColor3 = Color3.fromRGB(r,0,0)
-                titleLabel.TextStrokeColor3 = Color3.fromRGB(120,0,0)
-                titleLabel.TextStrokeTransparency = 1 - blink
-                titleLabel.Text = "<b><font color='rgb("..r..",0,0)'>M14EBR</font></b>  |  <font color='rgb("..r..",0,0)'>Paid Version - Fast Farming</font>"
-                task.wait(0.01)
-            end
+    
+    -- 2. Title Bar Glitch effect (occasional color/transparency flicker)
+    if math.random() < 0.15 then -- 15% chance per frame to glitch
+        local glitchColor = Color3.fromRGB(math.random(0, 255), math.random(0, 255), math.random(0, 255))
+        local glitchTransparency = math.random(10, 80) / 100
+        
+        if silence and silence.SetTitleBarColor then
+            silence:SetTitleBarColor({glitchColor, Color3.fromRGB(0, 0, 0), Color3.fromRGB(0, 0, 0)})
+        end
+        if silence and silence.SetTitleBarTransparency then
+            silence:SetTitleBarTransparency(glitchTransparency)
+        end
+    else
+        -- Return to normal state when not glitching
+        if silence and silence.SetTitleBarColor then
+            silence:SetTitleBarColor({Color3.fromRGB(128, 128, 128), Color3.fromRGB(0, 0, 0), Color3.fromRGB(0, 0, 0)})
+        end
+        if silence and silence.SetTitleBarTransparency then
+            silence:SetTitleBarTransparency(0.2)
         end
     end
 end)
