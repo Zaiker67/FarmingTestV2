@@ -299,42 +299,6 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     min_size = Vector2.new(500, 400),
     can_resize = false
 })
-
--- Rainbow RGB & Title Bar Glitch Loop
-local tickValue = 0
-runService.RenderStepped:Connect(function(dt)
-    tickValue = tickValue + dt
-    
-    -- 1. Rainbow RGB effect for main_color (loops through hue every 5 seconds)
-    local hue = (tickValue % 5) / 5
-    local rainbowColor = Color3.fromHSV(hue, 1, 1)
-    
-    if silence and silence.SetMainColor then
-        silence:SetMainColor(rainbowColor)
-    end
-    
-    -- 2. Title Bar Glitch effect (occasional color/transparency flicker)
-    if math.random() < 0.15 then -- 15% chance per frame to glitch
-        local glitchColor = Color3.fromRGB(math.random(0, 255), math.random(0, 255), math.random(0, 255))
-        local glitchTransparency = math.random(10, 80) / 100
-        
-        if silence and silence.SetTitleBarColor then
-            silence:SetTitleBarColor({glitchColor, Color3.fromRGB(0, 0, 0), Color3.fromRGB(0, 0, 0)})
-        end
-        if silence and silence.SetTitleBarTransparency then
-            silence:SetTitleBarTransparency(glitchTransparency)
-        end
-    else
-        -- Return to normal state when not glitching
-        if silence and silence.SetTitleBarColor then
-            silence:SetTitleBarColor({Color3.fromRGB(128, 128, 128), Color3.fromRGB(0, 0, 0), Color3.fromRGB(0, 0, 0)})
-        end
-        if silence and silence.SetTitleBarTransparency then
-            silence:SetTitleBarTransparency(0.2)
-        end
-    end
-end)
-
 local privacyRedactor = createPrivacyRedactor(lp.player, "Farming")
 
 _G.SilenceFarmingTitleGeneration = (_G.SilenceFarmingTitleGeneration or 0) + 1
