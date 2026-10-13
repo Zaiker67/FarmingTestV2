@@ -315,8 +315,8 @@ end)
 
 local tabs = {
     rebirths = silence:AddTab("Fast Rebirth"),
-    strength = silence:AddTab("Strength"),
-    strength2 = silence:AddTab("Fast Farm"),
+    boss = silence:AddTab("Boss Killing"),
+    strength2 = silence:AddTab("Fast Strength"),
     other = silence:AddTab("Misc"),
     other2 = silence:AddTab("MiscV2"),
     info = silence:AddTab("Info")
@@ -813,279 +813,794 @@ tabs.rebirths:AddSwitch("Auto Hallowed Gym (Anti Kill for Grinding)", function(b
     end
 end)
 
--- Strength Tab
+-- Boss Tab
 
-tabs.strength.leaderstats = lp.player:WaitForChild("leaderstats")
-tabs.strength.strength = tabs.strength.leaderstats:WaitForChild("Strength")
-tabs.strength.durability = lp.player:WaitForChild("Durability")
-tabs.strength.running = false
-tabs.strength.workerActive = false
-tabs.strength.startedAt = 0
-tabs.strength.totalElapsed = 0
-tabs.strength.timerStarted = false
-tabs.strength.gainedBaselineSet = false
-tabs.strength.startStrength = tabs.strength.strength.Value
-tabs.strength.startDurability = tabs.strength.durability.Value
-tabs.strength.lastSampleAt = tick()
-tabs.strength.lastStrength = tabs.strength.strength.Value
-tabs.strength.lastDurability = tabs.strength.durability.Value
-tabs.strength.paceBaselineReady = false
-tabs.strength.calculationInterval = 10
-tabs.strength.lastCalculationAt = tick()
-tabs.strength.lastCalculatedStrength = tabs.strength.strength.Value
-tabs.strength.lastCalculatedDurability = tabs.strength.durability.Value
-tabs.strength.initialSendRate = 200
-tabs.strength.maxSendRate = 659
-tabs.strength.sendRate = tabs.strength.initialSendRate
-tabs.strength.sendTokens = 0
-tabs.strength.maxBurst = 24
-tabs.strength.controlInterval = 0.5
-tabs.strength.lastControlAt = tick()
-tabs.strength.lastProgressAt = tick()
-tabs.strength.lastControlStrength = tabs.strength.strength.Value
-tabs.strength.lastControlDurability = tabs.strength.durability.Value
-tabs.strength.stalledIntervals = 0
-tabs.strength.lastLoopAt = os.clock()
-tabs.strength.repIndex = 1
-tabs.strength.Status = tabs.strength:AddLabel("Status: Inactive")
-tabs.strength.Runtime = tabs.strength:AddLabel("Runtime: 0d 0h 0m 0s")
-tabs.strength.StrengthStats = tabs.strength:AddLabel("Strength: " .. formatCurrentStat(tabs.strength.strength.Value) .. " | Gained: 0")
-tabs.strength.DurabilityStats = tabs.strength:AddLabel("Durability: " .. formatCurrentStat(tabs.strength.durability.Value) .. " | Gained: 0")
-tabs.strength.StrengthPace = tabs.strength:AddLabel("Str Pace: --/s | --/min | --/h | --/d")
-tabs.strength.DurabilityPace = tabs.strength:AddLabel("Dura Pace: --/s | --/min | --/h | --/d")
-tabs.strength.StrengthAverage = tabs.strength:AddLabel("Str Ø: --/s | --/min | --/h | --/d")
-tabs.strength.DurabilityAverage = tabs.strength:AddLabel("Dura Ø: --/s | --/min | --/h | --/d")
-tabs.strength.Status.TextColor3 = Color3.fromRGB(255, 80, 80)
+tabs.boss:AddLabel("Boss Farming:")
+tabs.boss.StatusLabel = tabs.boss:AddLabel("Status: Waiting for Boss")
+tabs.boss.BossLabel = tabs.boss:AddLabel("Boss: None")
+tabs.boss.HealthLabel = tabs.boss:AddLabel("Health: 0 / 0")
+tabs.boss.NextBossLabel = tabs.boss:AddLabel("Next Boss: N/A")
 
-tabs.strength.updateRuntime = function()
-    tabs.strength.elapsed = tabs.strength.totalElapsed
-    if tabs.strength.running and tabs.strength.timerStarted then
-        tabs.strength.elapsed = tabs.strength.elapsed + tick() - tabs.strength.startedAt
-    end
+tabs.boss.Data = {
+	Running = false,
+	Generation = 0,
+	ContinueTraining = true,
+	Phase = "Waiting",
+	TrainingSnapshot = nil,
+	TrainingRestore = nil,
+	TrainingResumeGeneration = 0,
+	PreparationSeconds = 4,
+	PunchInterval = 0.3,
+	LastPunch = 0,
+	AttackSequence = nil,
+	EvadeUntil = 0,
+	EvadeDistance = 230,
+	PunchBehindDistance = 45,
+	StompHealthThreshold = 0.35,
+	DodgeStomps = false,
+	BossConfig = nil,
+	Bosses = {},
+	BossOrder = {},
+	BossByDisplayName = {},
+	SelectedBosses = {}
+}
 
-    tabs.strength.Runtime.Text = string.format(
-        "Runtime: %dd %dh %dm %ds",
-        math.floor(tabs.strength.elapsed / 86400),
-        math.floor((tabs.strength.elapsed % 86400) / 3600),
-        math.floor((tabs.strength.elapsed % 3600) / 60),
-        math.floor(tabs.strength.elapsed % 60)
-    )
-end
-
-tabs.strength.updateStats = function()
-    tabs.strength.StrengthStats.Text = "Strength: " .. formatCurrentStat(tabs.strength.strength.Value)
-        .. " | Gained: " .. formatNumber(tabs.strength.strength.Value - tabs.strength.startStrength)
-    tabs.strength.DurabilityStats.Text = "Durability: " .. formatCurrentStat(tabs.strength.durability.Value)
-        .. " | Gained: " .. formatNumber(tabs.strength.durability.Value - tabs.strength.startDurability)
-end
-
-tabs.strength.updatePace = function()
-    if not tabs.strength.running then
-        return
-    end
-
-    if not tabs.strength.timerStarted then
-        if tabs.strength.strength.Value == tabs.strength.startStrength and tabs.strength.durability.Value == tabs.strength.startDurability then
-            return
-        end
-
-        tabs.strength.timerStarted = true
-        tabs.strength.startedAt = tick()
-        tabs.strength.lastSampleAt = tick()
-        tabs.strength.lastStrength = tabs.strength.strength.Value
-        tabs.strength.lastDurability = tabs.strength.durability.Value
-        tabs.strength.lastCalculationAt = tick()
-        tabs.strength.lastCalculatedStrength = tabs.strength.strength.Value
-        tabs.strength.lastCalculatedDurability = tabs.strength.durability.Value
-        return
-    end
-
-end
-
-tabs.strength.calculatePace = function()
-    if not tabs.strength.running or not tabs.strength.timerStarted then
-        return
-    end
-
-    if tick() - tabs.strength.lastCalculationAt < tabs.strength.calculationInterval then
-        return
-    end
-
-    tabs.strength.calculationElapsed = tick() - tabs.strength.lastCalculationAt
-    tabs.strength.strengthDelta = tabs.strength.strength.Value - tabs.strength.lastCalculatedStrength
-    tabs.strength.durabilityDelta = tabs.strength.durability.Value - tabs.strength.lastCalculatedDurability
-    tabs.strength.strengthPacePerSecond = tabs.strength.strengthDelta / tabs.strength.calculationElapsed
-    tabs.strength.durabilityPacePerSecond = tabs.strength.durabilityDelta / tabs.strength.calculationElapsed
-
-    if tabs.strength.strengthDelta > 0 then
-        tabs.strength.StrengthPace.Text = "Str Pace: " .. formatPace(tabs.strength.strengthPacePerSecond)
-    end
-    if tabs.strength.durabilityDelta > 0 then
-        tabs.strength.DurabilityPace.Text = "Dura Pace: " .. formatPace(tabs.strength.durabilityPacePerSecond)
-    end
-
-    tabs.strength.averageElapsed = tabs.strength.totalElapsed + tick() - tabs.strength.startedAt
-    tabs.strength.averageStrengthPerSecond = (tabs.strength.strength.Value - tabs.strength.startStrength)
-        / tabs.strength.averageElapsed
-    tabs.strength.averageDurabilityPerSecond = (tabs.strength.durability.Value - tabs.strength.startDurability)
-        / tabs.strength.averageElapsed
-    tabs.strength.StrengthAverage.Text = "Str Ø: " .. formatPace(tabs.strength.averageStrengthPerSecond)
-    tabs.strength.DurabilityAverage.Text = "Dura Ø: " .. formatPace(tabs.strength.averageDurabilityPerSecond)
-
-    tabs.strength.lastCalculationAt = tick()
-    tabs.strength.lastCalculatedStrength = tabs.strength.strength.Value
-    tabs.strength.lastCalculatedDurability = tabs.strength.durability.Value
-end
-
-tabs.strength.updateAdaptiveRate = function()
-    tabs.strength.controlNow = tick()
-    tabs.strength.controlElapsed = tabs.strength.controlNow - tabs.strength.lastControlAt
-    if tabs.strength.controlElapsed < tabs.strength.controlInterval then
-        return
-    end
-
-    tabs.strength.serverProgress = tabs.strength.strength.Value > tabs.strength.lastControlStrength
-        or tabs.strength.durability.Value > tabs.strength.lastControlDurability
-
-    if tabs.strength.serverProgress then
-        tabs.strength.stalledIntervals = 0
-        tabs.strength.lastProgressAt = tabs.strength.controlNow
-        tabs.strength.sendRate = math.min(tabs.strength.maxSendRate, tabs.strength.sendRate * 1.12)
-        tabs.strength.Status.Text = "Status: Farming | "
-            .. formatNumber(tabs.strength.sendRate) .. " reps/s"
-        tabs.strength.Status.TextColor3 = Color3.fromRGB(80, 255, 120)
-    else
-        tabs.strength.stalledIntervals = tabs.strength.stalledIntervals + 1
-    end
-
-    if tabs.strength.stalledIntervals >= 2 then
-        tabs.strength.sendRate = math.max(tabs.strength.initialSendRate, tabs.strength.sendRate * 0.65)
-        tabs.strength.sendTokens = 0
-        tabs.strength.Status.Text = "Status: Slowing for server | "
-            .. formatNumber(tabs.strength.sendRate) .. " reps/s"
-        tabs.strength.Status.TextColor3 = Color3.fromRGB(255, 180, 70)
-    end
-
-    tabs.strength.lastControlAt = tabs.strength.controlNow
-    tabs.strength.lastControlStrength = tabs.strength.strength.Value
-    tabs.strength.lastControlDurability = tabs.strength.durability.Value
-end
-
-tabs.strength.workerLoop = function()
-    tabs.strength.lastLoopAt = os.clock()
-    while tabs.strength.running do
-        tabs.strength.loopNow = os.clock()
-        tabs.strength.loopElapsed = math.min(0.1, tabs.strength.loopNow - tabs.strength.lastLoopAt)
-        tabs.strength.lastLoopAt = tabs.strength.loopNow
-
-        tabs.strength.updateAdaptiveRate()
-        tabs.strength.sendTokens = math.min(
-            tabs.strength.maxBurst,
-            tabs.strength.sendTokens + tabs.strength.sendRate * tabs.strength.loopElapsed
-        )
-        tabs.strength.burstLimit = math.max(
-            1,
-            math.min(tabs.strength.maxBurst, math.ceil(tabs.strength.sendRate * 0.05))
-        )
-        tabs.strength.sendCount = math.min(
-            math.floor(tabs.strength.sendTokens),
-            tabs.strength.burstLimit
-        )
-        tabs.strength.repIndex = 1
-        while tabs.strength.repIndex <= tabs.strength.sendCount do
-            services.muscleEvent:FireServer("rep")
-            tabs.strength.repIndex = tabs.strength.repIndex + 1
-        end
-        tabs.strength.sendTokens = tabs.strength.sendTokens - tabs.strength.sendCount
-
-        services.runservice.Heartbeat:Wait()
-    end
-
-    tabs.strength.workerActive = false
-    if tabs.strength.running then
-        tabs.strength.startWorker()
-    end
-end
-
-tabs.strength.startWorker = function()
-    if tabs.strength.workerActive then
-        return
-    end
-
-    tabs.strength.workerActive = true
-    task.spawn(tabs.strength.workerLoop)
-end
-
-tabs.strength.strength:GetPropertyChangedSignal("Value"):Connect(function()
-    tabs.strength.updateStats()
-    tabs.strength.updatePace()
-end)
-
-tabs.strength.durability:GetPropertyChangedSignal("Value"):Connect(function()
-    tabs.strength.updateStats()
-    tabs.strength.updatePace()
-end)
-
-tabs.strength:AddTextBox("Max reps/s: " .. tabs.strength.maxSendRate, function(inputText)
-    tabs.strength.maxSendRate = tonumber(inputText)
-
-    if tabs.strengthmaxSendRate then
-        tabs.strength.maxSendRate = math.max(1, tabs.strength.maxSendRate)
-        tabs.strength.sendRate = math.min(
-            tabs.strength.sendRate,
-            tabs.strength.maxSendRate
-        )
-    end
+tabs.boss:AddTextBox("Seconds Training before Boss (when Rebirthing):", function(text)
+	if tonumber(text) and tonumber(text) >= 0 then tabs.boss.Data.PreparationSeconds = tonumber(text) end
 end, {clear = false})
 
-tabs.strength:AddLabel("Recommended Speed: 659, more = lag")
-
-tabs.strength.FastRepToggle = tabs.strength:AddSwitch("Fast Rep", function(state)
-    tabs.strength.running = state
-    if state then
-        if not tabs.strength.gainedBaselineSet then
-            tabs.strength.startStrength = tabs.strength.strength.Value
-            tabs.strength.startDurability = tabs.strength.durability.Value
-            tabs.strength.gainedBaselineSet = true
-        end
-        tabs.strength.timerStarted = false
-        tabs.strength.startedAt = 0
-        tabs.strength.lastSampleAt = tick()
-        tabs.strength.lastStrength = tabs.strength.strength.Value
-        tabs.strength.lastDurability = tabs.strength.durability.Value
-        tabs.strength.paceBaselineReady = false
-        tabs.strength.sendRate = tabs.strength.initialSendRate
-        tabs.strength.sendTokens = 0
-        tabs.strength.lastLoopAt = os.clock()
-        tabs.strength.lastControlAt = tick()
-        tabs.strength.lastProgressAt = tick()
-        tabs.strength.lastControlStrength = tabs.strength.strength.Value
-        tabs.strength.lastControlDurability = tabs.strength.durability.Value
-        tabs.strength.stalledIntervals = 0
-        tabs.strength.Status.Text = "Status: Farming | 200 reps/s"
-        tabs.strength.Status.TextColor3 = Color3.fromRGB(80, 255, 120)
-        tabs.strength.startWorker()
-    else
-        if tabs.strength.timerStarted and tabs.strength.startedAt > 0 then
-            tabs.strength.totalElapsed = tabs.strength.totalElapsed + tick() - tabs.strength.startedAt
-            tabs.strength.startedAt = 0
-            tabs.strength.timerStarted = false
-        end
-        tabs.strength.sendTokens = 0
-        tabs.strength.Status.Text = tabs.strength.gainedBaselineSet and "Status: Paused" or "Status: Inactive"
-        tabs.strength.Status.TextColor3 = tabs.strength.gainedBaselineSet and Color3.fromRGB(255, 180, 70) or Color3.fromRGB(255, 80, 80)
-        tabs.strength.updateRuntime()
-    end
+tabs.boss.SelectedBossesLabel = tabs.boss:AddLabel("Targeted Bosses: Detecting...")
+tabs.boss.BossDropdown = tabs.boss:AddDropdown("Target specific Bosses", function(displayName)
+	tabs.boss.runtime.bossModelName = tabs.boss.Data.BossByDisplayName[displayName]
+	if tabs.boss.runtime.bossModelName then
+		tabs.boss.Data.SelectedBosses[tabs.boss.runtime.bossModelName] = not tabs.boss.Data.SelectedBosses[tabs.boss.runtime.bossModelName]
+		tabs.boss.updateSelectedBossesLabel()
+	end
 end)
 
-tabs.strength.FastRepToggle:Set(false)
+tabs.boss.updateSelectedBossesLabel = function(selectedNames)
+	selectedNames = {}
+	for _, modelName in ipairs(tabs.boss.Data.BossOrder) do
+		if tabs.boss.Data.SelectedBosses[modelName] then
+			table.insert(selectedNames, (string.gsub(tabs.boss.Data.Bosses[modelName], "%s+[Bb][Oo][Ss][Ss]$", "")))
+		end
+	end
+	tabs.boss.SelectedBossesLabel.Text = "Targeted Bosses: " .. (#selectedNames > 0 and table.concat(selectedNames, ", ") or "None")
+end
 
-task.spawn(function()
-    while true do
-        tabs.strength.updateRuntime()
-        tabs.strength.calculatePace()
-        task.wait(1)
-    end
+tabs.boss.addBossChoice = function(modelName, displayName)
+	modelName = tostring(modelName or "")
+	displayName = tostring(displayName or modelName)
+	if modelName == "" or tabs.boss.Data.Bosses[modelName] then return end
+	tabs.boss.Data.Bosses[modelName] = displayName
+	tabs.boss.Data.BossByDisplayName[displayName] = modelName
+	tabs.boss.Data.SelectedBosses[modelName] = true
+	table.insert(tabs.boss.Data.BossOrder, modelName)
+	tabs.boss.BossDropdown:Add(displayName)
+	tabs.boss.updateSelectedBossesLabel()
+end
+
+tabs.boss.runtime.configSuccess, tabs.boss.Data.BossConfig = pcall(function()
+	return require(services.ReplicatedStorage:WaitForChild("shared"):WaitForChild("config"):WaitForChild("BossEventConfig"))
+end)
+if tabs.boss.runtime.configSuccess and tabs.boss.Data.BossConfig and tabs.boss.Data.BossConfig.RARITIES then
+	for _, rarity in ipairs(tabs.boss.Data.BossConfig.RARITIES) do
+		tabs.boss.addBossChoice(rarity.BossModel, rarity.DisplayName or rarity.Name or rarity.BossModel)
+	end
+else
+	tabs.boss.SelectedBossesLabel.Text = "Farmed Bosses: Waiting for detection"
+end
+
+tabs.boss.shouldFarmBoss = function(model)
+	if not tabs.boss.Data.Bosses[model.Name] then
+		tabs.boss.addBossChoice(model.Name, services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+	end
+	return tabs.boss.Data.SelectedBosses[model.Name] == true
+end
+
+tabs.boss.findActiveBoss = function(model, stats, health, maxHealth, hitbox)
+	for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventBoss")) do
+		if candidate:IsA("Model") and candidate:IsDescendantOf(services.Workspace) then
+			model = candidate
+			break
+		end
+	end
+
+	if not model then
+		tabs.boss.runtime.events = services.Workspace:FindFirstChild("Events")
+		tabs.boss.runtime.bossFolder = tabs.boss.runtime.events and (tabs.boss.runtime.events:FindFirstChild("BossEvent") or tabs.boss.runtime.events:FindFirstChild("BossArena"))
+		if tabs.boss.runtime.bossFolder then
+			for _, candidate in ipairs(tabs.boss.runtime.bossFolder:GetDescendants()) do
+				if candidate:IsA("Model") and (candidate:FindFirstChild("BossDamageHitbox") or candidate:HasTag("BossEventBoss")) then
+					model = candidate
+					break
+				end
+			end
+		end
+	end
+
+	if not model then return end
+	stats = model:FindFirstChild("stats")
+	health = stats and stats:FindFirstChild("Health")
+	maxHealth = stats and stats:FindFirstChild("MaxHealth")
+	hitbox = model:FindFirstChild("BossDamageHitbox", true)
+	if not hitbox or not hitbox:IsA("BasePart") then return end
+	tabs.boss.runtime.currentHealth = health and health.Value or services.Workspace:GetAttribute("BossHealth")
+	if typeof(tabs.boss.runtime.currentHealth) == "number" and tabs.boss.runtime.currentHealth <= 0 then return end
+	return model, health, maxHealth, hitbox
+end
+
+tabs.boss.getBossDisplayName = function(model)
+	return services.Workspace:GetAttribute("BossDisplayName") or model.Name
+end
+
+tabs.boss.getBossHealth = function(health)
+	return health and health.Value or services.Workspace:GetAttribute("BossHealth") or 0
+end
+
+tabs.boss.getBossMaxHealth = function(maxHealth)
+	return maxHealth and maxHealth.Value or services.Workspace:GetAttribute("BossMaxHealth") or 0
+end
+
+tabs.boss.formatCountdown = function(seconds, hours, minutes)
+	seconds = math.max(0, math.floor(seconds or 0))
+	hours = math.floor(seconds / 3600)
+	minutes = math.floor(seconds % 3600 / 60)
+	seconds = seconds % 60
+	return string.format("%dh %dmin %ds", hours, minutes, seconds)
+end
+
+tabs.boss.leaveExerciseMachine = function(character, humanoid, root)
+	character = utils.playerData.Player.Character
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	root = character and character:FindFirstChild("HumanoidRootPart")
+	if not humanoid or humanoid.Health <= 0 then return end
+
+	pcall(function()
+		services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+		humanoid.Sit = false
+		humanoid.Jump = true
+		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		if root then root.AssemblyLinearVelocity = Vector3.new(0, math.max(root.AssemblyLinearVelocity.Y, 50), 0) end
+	end)
+	pcall(function() services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game) end)
+	tabs.farming.MachineCooldownUntil = math.max(tabs.farming.MachineCooldownUntil, os.clock() + 4)
+	for _, machineData in pairs(tabs.farming.MachineExerciseData) do
+		machineData.ReenterAt = math.max(machineData.ReenterAt, tabs.farming.MachineCooldownUntil)
+	end
+	task.wait(0.2)
+end
+
+tabs.boss.captureTraining = function()
+	tabs.boss.Data.TrainingResumeGeneration += 1
+	if tabs.boss.Data.TrainingSnapshot then return end
+	if tabs.boss.Data.TrainingRestore then
+		tabs.boss.Data.TrainingSnapshot = tabs.boss.Data.TrainingRestore
+		tabs.boss.Data.TrainingRestore = nil
+		return
+	end
+	tabs.boss.Data.TrainingSnapshot = {
+		Rebirth = tabs.farming.RebirthData.IsAutoRebirthing,
+		Size = tabs.farming.SizeData.Active,
+		King = tabs.farming.KingData.TeleportActive,
+		Tool = tabs.farming.ExerciseData.AutoFarm,
+		SelectedTool = tabs.farming.ExerciseData.SelectedTool,
+		Squat = tabs.farming.MachineExerciseData.Squat.Running,
+		Lift = tabs.farming.MachineExerciseData.Lift.Running,
+		SquatMachine = tabs.farming.MachineExerciseData.Squat.ActiveMachine or tabs.farming.MachineExerciseData.Squat.SelectedMachine,
+		LiftMachine = tabs.farming.MachineExerciseData.Lift.ActiveMachine or tabs.farming.MachineExerciseData.Lift.SelectedMachine,
+		AutoRep = tabs.farming.AutoRepRunning,
+		Rock = tabs.farming.RockFarmRunning == true,
+		Configs = {}
+	}
+	for _, config in ipairs(tabs.farming.Configs) do
+		tabs.boss.Data.TrainingSnapshot.Configs[config.name] = tabs.farming.ActiveConfigs[config.name] == true
+	end
+end
+
+tabs.boss.startSavedExercise = function(snapshot, preparing)
+	if snapshot.Squat then
+		tabs.farming.MachineExerciseData.Squat.SelectedMachine = snapshot.SquatMachine
+		if not tabs.farming.MachineExerciseData.Squat.Running then tabs.farming.SquatExerciseSwitch:Set(true) end
+	elseif snapshot.Lift then
+		tabs.farming.MachineExerciseData.Lift.SelectedMachine = snapshot.LiftMachine
+		if not tabs.farming.MachineExerciseData.Lift.Running then tabs.farming.LiftExerciseSwitch:Set(true) end
+	elseif snapshot.Tool or preparing then
+		tabs.farming.ExerciseData.SelectedTool = snapshot.Tool and snapshot.SelectedTool or "Pushups"
+		if not tabs.farming.ExerciseData.AutoFarm then tabs.farming.ToolExerciseSwitch:Set(true) end
+	end
+end
+
+tabs.boss.isTrainingReady = function(snapshot, preparing, character, humanoid, machine)
+	character = utils.playerData.Player.Character
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 or not character:FindFirstChild("HumanoidRootPart") then return false end
+	if snapshot.Squat or snapshot.Lift then
+		machine = snapshot.Squat and tabs.farming.MachineExerciseData.Squat or tabs.farming.MachineExerciseData.Lift
+		return machine.Running and machine.ActiveMachine ~= nil and machine.ActiveMachine == machine.SelectedMachine
+			and (not machine.SeatPart or humanoid.SeatPart == machine.SeatPart)
+	end
+	if snapshot.Tool or preparing then
+		return tabs.farming.ExerciseData.AutoFarm
+			and character:FindFirstChild(snapshot.Tool and snapshot.SelectedTool or "Pushups") ~= nil
+	end
+	return true
+end
+
+tabs.boss.pauseTraining = function(onMachine)
+	tabs.boss.captureTraining()
+	onMachine = tabs.farming.MachineExerciseData.Squat.ActiveMachine or tabs.farming.MachineExerciseData.Squat.EnteringMachine
+		or tabs.farming.MachineExerciseData.Lift.ActiveMachine or tabs.farming.MachineExerciseData.Lift.EnteringMachine
+	if tabs.farming.RebirthData.IsAutoRebirthing then tabs.farming.RebirthData.Switch:Set(false) end
+	if tabs.farming.SizeData.Active then tabs.farming.SizeSwitch:Set(false) end
+	if tabs.farming.KingData.TeleportActive then tabs.farming.KingSwitch:Set(false) end
+	if tabs.farming.ExerciseData.AutoFarm then tabs.farming.ToolExerciseSwitch:Set(false) end
+	if tabs.farming.MachineExerciseData.Squat.Running then tabs.farming.SquatExerciseSwitch:Set(false) end
+	if tabs.farming.MachineExerciseData.Lift.Running then tabs.farming.LiftExerciseSwitch:Set(false) end
+	if tabs.farming.AutoRepRunning then tabs.farming.AutoRepSwitch:Set(false) end
+	if tabs.farming.RockFarmRunning then tabs.farming.RockSwitch:Set(false) end
+	for _, config in ipairs(tabs.farming.Configs) do
+		if tabs.farming.ActiveConfigs[config.name] and config.Switch then config.Switch:Set(false) end
+	end
+	if onMachine then tabs.boss.leaveExerciseMachine() end
+end
+
+tabs.boss.hasTrainingStats = function(strength, durability)
+	strength = utils.playerData.Player.leaderstats:FindFirstChild("Strength")
+	durability = utils.playerData.Player:FindFirstChild("Durability")
+	return strength and durability and strength.Value > 0 and durability.Value > 0
+end
+
+tabs.boss.prepareForBoss = function(boss, preparation, character, humanoid, tool, backpack, toolName, strength)
+	if not boss.Data.Preparation then
+		tabs.boss.pauseTraining()
+		boss.Data.Preparation = {LastRep = 0}
+		boss.Data.Phase = "Training"
+	end
+	preparation = boss.Data.Preparation
+	character = utils.playerData.Player.Character
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if preparation.Character ~= character or preparation.Rebirths ~= tabs.farming.RebirthData.Rebirths.Value then
+		preparation.Character = character
+		preparation.Rebirths = tabs.farming.RebirthData.Rebirths.Value
+		preparation.StartedAt = nil
+		preparation.PetsReady = nil
+		preparation.LastRep = 0
+		preparation.Required = not tabs.boss.hasTrainingStats()
+	end
+	if not humanoid or humanoid.Health <= 0 then
+		preparation.StartedAt = nil
+		boss.StatusLabel.Text = "Status: Waiting for Respawn"
+		return false
+	end
+	if not preparation.Required then
+		boss.Data.FightCharacter = character
+		boss.Data.FightRebirths = tabs.farming.RebirthData.Rebirths.Value
+		boss.Data.Preparation = nil
+		return true
+	end
+	if utils.playerData.Player.Character ~= character or humanoid.Health <= 0 then return false end
+	backpack = utils.playerData.Player:FindFirstChild("Backpack")
+	strength = utils.playerData.Player.leaderstats:FindFirstChild("Strength")
+	if not strength then return false end
+	toolName = strength.Value < 2000 and "Weight" or "Pushups"
+	if toolName == "Weight" then preparation.StartedAt = nil end
+	tool = character:FindFirstChild(toolName) or backpack and backpack:FindFirstChild(toolName)
+	if not tool then
+		preparation.StartedAt = nil
+		boss.StatusLabel.Text = "Status: Waiting for " .. toolName
+		return false
+	end
+	if tool.Parent ~= character then humanoid:EquipTool(tool) end
+	if tool.Parent ~= character then preparation.StartedAt = nil return false end
+	if toolName == "Pushups" then preparation.StartedAt = preparation.StartedAt or os.clock() end
+	if os.clock() - preparation.LastRep >= 0.1 then
+		utils.playerData.Player.muscleEvent:FireServer("rep")
+		preparation.LastRep = os.clock()
+	end
+	if toolName == "Weight" then
+		boss.StatusLabel.Text = "Status: Weight Training | " .. utils.formatNumber(strength.Value) .. " / 2K Strength"
+		return false
+	end
+	boss.StatusLabel.Text = "Status: Training before Boss (" .. string.format("%.1f", math.max(0, tabs.boss.Data.PreparationSeconds - (os.clock() - preparation.StartedAt))) .. "s)"
+	if os.clock() - preparation.StartedAt < tabs.boss.Data.PreparationSeconds then return false end
+	boss.Data.FightCharacter = character
+	boss.Data.FightRebirths = tabs.farming.RebirthData.Rebirths.Value
+	boss.Data.Preparation = nil
+	return true
+end
+
+tabs.boss.needsRetraining = function(boss, character, humanoid)
+	character = utils.playerData.Player.Character
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	return not humanoid or humanoid.Health <= 0 or boss.Data.FightCharacter ~= utils.playerData.Player.Character
+		or boss.Data.FightRebirths ~= tabs.farming.RebirthData.Rebirths.Value
+end
+
+tabs.boss.resumeTraining = function(snapshot)
+	snapshot = tabs.boss.Data.TrainingSnapshot
+	if not snapshot then return end
+	tabs.boss.Data.TrainingSnapshot = nil
+	tabs.boss.Data.TrainingRestore = snapshot
+	tabs.boss.Data.TrainingResumeGeneration += 1
+	if not snapshot.Tool and tabs.farming.ExerciseData.AutoFarm then tabs.farming.ToolExerciseSwitch:Set(false) end
+	tabs.farming.ExerciseData.SelectedTool = snapshot.SelectedTool
+	tabs.boss.startSavedExercise(snapshot, false)
+	if snapshot.Size then tabs.farming.SizeSwitch:Set(true) end
+	if snapshot.King then tabs.farming.KingSwitch:Set(true) end
+	if snapshot.AutoRep then tabs.farming.AutoRepSwitch:Set(true) end
+	if snapshot.Rock then tabs.farming.RockSwitch:Set(true) end
+	for _, config in ipairs(tabs.farming.Configs) do
+		if snapshot.Configs[config.name] and config.Switch then config.Switch:Set(true) end
+	end
+	task.spawn(function(generation)
+		while tabs.boss.Data.TrainingResumeGeneration == generation do
+			if tabs.boss.isTrainingReady(snapshot, false) then
+				tabs.boss.Data.TrainingRestore = nil
+				if snapshot.Rebirth then tabs.farming.RebirthData.Switch:Set(true) end
+				return
+			end
+			task.wait(0.1)
+		end
+	end, tabs.boss.Data.TrainingResumeGeneration)
+end
+
+tabs.boss.getBossHeadPosition = function(model, hitbox, head)
+	head = model:FindFirstChild("Head", true) or model:FindFirstChild("head", true)
+	if head and head:IsA("BasePart") then return head.Position end
+	if head and head:IsA("Bone") then return head.WorldPosition end
+	return hitbox.Position + Vector3.new(0, hitbox.Size.Y * 0.35, 0)
+end
+
+tabs.boss.getAliveCharacter = function(generation, timeout, startedAt, character, root, humanoid)
+	if not tabs.boss.Data.Running or tabs.boss.Data.Generation ~= generation then return end
+	startedAt = os.clock()
+	repeat
+		character = utils.playerData.Player.Character
+		root = character and character:FindFirstChild("HumanoidRootPart")
+		humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if root and humanoid and humanoid.Health > 0 then
+			utils.playerData.Character = character
+			utils.playerData.Humanoid = humanoid
+			return character, root, humanoid
+		end
+		tabs.boss.StatusLabel.Text = "Status: Waiting for Respawn"
+		task.wait(0.1)
+	until not tabs.boss.Data.Running
+		or tabs.boss.Data.Generation ~= generation
+		or (timeout and os.clock() - startedAt >= timeout)
+end
+
+tabs.boss.evadeAttack = function(boss, model, hitbox, root, humanoid, sequence, attackKind, attackCFrame, impactTime, direction, safePosition, center)
+	sequence = model:GetAttribute("BossAttackSequence")
+	attackKind = model:GetAttribute("BossAttackKind")
+	attackCFrame = model:GetAttribute("BossAttackCFrame")
+	impactTime = model:GetAttribute("BossAttackImpactTime")
+
+	if typeof(sequence) == "number" and sequence ~= boss.Data.AttackSequence then
+		boss.Data.AttackSequence = sequence
+		if typeof(attackKind) == "string" and typeof(attackCFrame) == "CFrame" and typeof(impactTime) == "number" then
+			boss.Data.EvadeUntil = impactTime + 0.6
+		end
+	end
+
+	if typeof(attackCFrame) ~= "CFrame" or services.Workspace:GetServerTimeNow() > boss.Data.EvadeUntil then
+		return
+	end
+
+	attackKind = string.lower(tostring(attackKind or ""))
+	if string.find(attackKind, "punch", 1, true) then
+		center = tabs.boss.getBossHeadPosition(model, hitbox)
+		direction = Vector3.new(attackCFrame.LookVector.X, 0, attackCFrame.LookVector.Z)
+		if direction.Magnitude < 1 then direction = Vector3.new(hitbox.CFrame.LookVector.X, 0, hitbox.CFrame.LookVector.Z) end
+		if direction.Magnitude < 1 then direction = Vector3.new(0, 0, 1) end
+		safePosition = center - direction.Unit * boss.Data.PunchBehindDistance
+		root.CFrame = CFrame.lookAt(safePosition, center)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+		boss.StatusLabel.Text = "Status: Dodging Punch"
+		return "Punch"
+	end
+
+	if not string.find(attackKind, "stomp", 1, true) then return end
+	if humanoid.Health / math.max(humanoid.MaxHealth, 1) <= boss.Data.StompHealthThreshold then
+		boss.Data.DodgeStomps = true
+	end
+	if not boss.Data.DodgeStomps then return end
+
+	direction = Vector3.new(root.Position.X - attackCFrame.Position.X, 0, root.Position.Z - attackCFrame.Position.Z)
+	if direction.Magnitude < 1 then
+		direction = Vector3.new(-attackCFrame.LookVector.X, 0, -attackCFrame.LookVector.Z)
+	end
+	if direction.Magnitude < 1 then direction = Vector3.new(1, 0, 0) end
+	direction = direction.Unit
+	safePosition = attackCFrame.Position + direction * boss.Data.EvadeDistance + Vector3.new(0, 18, 0)
+	root.CFrame = CFrame.lookAt(safePosition, attackCFrame.Position)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	boss.StatusLabel.Text = "Status: Dodging Stomp"
+	return "Stomp"
+end
+
+tabs.boss.attack = function(boss, model, health, maxHealth, hitbox, character, root, humanoid, punch, leftHand, rightHand, center, position, evadeMode)
+	character = utils.playerData.Player.Character
+	root = character and character:FindFirstChild("HumanoidRootPart")
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid or humanoid.Health <= 0 then return end
+	evadeMode = tabs.boss.evadeAttack(boss, model, hitbox, root, humanoid)
+	if evadeMode == "Stomp" then return end
+	punch = character:FindFirstChild("Punch") or utils.playerData.Backpack:FindFirstChild("Punch")
+	if punch and punch.Parent ~= character then humanoid:EquipTool(punch) end
+	leftHand = character:FindFirstChild("LeftHand")
+	rightHand = character:FindFirstChild("RightHand")
+	center = tabs.boss.getBossHeadPosition(model, hitbox)
+	if evadeMode ~= "Punch" then
+		position = center
+		root.CFrame = CFrame.lookAt(position, position + hitbox.CFrame.LookVector)
+	end
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	pcall(function()
+		if leftHand then
+			utils.touchParts(hitbox, leftHand, 0)
+			utils.touchParts(hitbox, leftHand, 1)
+		end
+		if rightHand then
+			utils.touchParts(hitbox, rightHand, 0)
+			utils.touchParts(hitbox, rightHand, 1)
+		end
+	end)
+
+	if os.clock() - boss.Data.LastPunch >= boss.Data.PunchInterval then
+		boss.Data.LastPunch = os.clock()
+		pcall(function()
+			utils.remotes.MuscleEvent:FireServer("punch", "leftHand")
+			utils.remotes.MuscleEvent:FireServer("punch", "rightHand")
+			if punch then punch:Activate() end
+		end)
+	end
+
+	boss.BossLabel.Text = (boss.BossLabelPrefix or "Boss: ") .. boss.getBossDisplayName(model)
+	boss.runtime.health = boss.getBossHealth(health, model)
+	boss.runtime.maxHealth = boss.getBossMaxHealth(maxHealth, model)
+	boss.HealthLabel.Text = "Health: " .. utils.formatNumber(boss.runtime.health) .. " / " .. utils.formatNumber(boss.runtime.maxHealth)
+end
+
+tabs.boss.findChest = function(chest, prompt, part)
+	for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventChest")) do
+		if candidate:IsDescendantOf(services.Workspace) then chest = candidate break end
+	end
+	if not chest then chest = services.Workspace:FindFirstChild("BossChest", true) end
+	if not chest then
+		for _, candidate in ipairs(services.Workspace:GetDescendants()) do
+			if candidate:IsA("ProximityPrompt") and candidate.Name == "bossChestPrompt" then
+				chest = candidate.Parent
+				break
+			end
+		end
+	end
+	if not chest then return end
+	prompt = chest:FindFirstChild("bossChestPrompt", true)
+	part = prompt and prompt.Parent or (chest:IsA("Model") and (chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart", true))) or chest
+	if part and part:IsA("BasePart") then return chest, prompt, part end
+end
+
+tabs.boss.collectChest = function(generation, startedAt, chest, prompt, part, character, root)
+	tabs.boss.StatusLabel.Text = "Status: Waiting for Chest"
+	startedAt = os.clock()
+	repeat
+		chest, prompt, part = tabs.boss.findChest()
+		if chest and chest:GetAttribute("BossChestEmerging") ~= true then break end
+		task.wait(0.1)
+	until not tabs.boss.Data.Running or tabs.boss.Data.Generation ~= generation or os.clock() - startedAt >= 12
+	if not tabs.boss.Data.Running or tabs.boss.Data.Generation ~= generation or not chest or not part then return end
+
+	tabs.boss.StatusLabel.Text = "Status: Collecting Chest"
+	startedAt = os.clock()
+	repeat
+		character, root = tabs.boss.getAliveCharacter(generation, 2)
+		if character and root and chest.Parent and part.Parent then
+			tabs.boss.StatusLabel.Text = "Status: Collecting Chest"
+			pcall(function()
+				root.CFrame = CFrame.lookAt(part.Position + Vector3.new(0, 3, 4), part.Position)
+				root.AssemblyLinearVelocity = Vector3.zero
+			end)
+			task.wait(0.15)
+			if not tabs.boss.Data.Running or tabs.boss.Data.Generation ~= generation then return end
+			if not (prompt and prompt.Parent and type(fireproximityprompt) == "function"
+				and pcall(fireproximityprompt, prompt)) then
+				pcall(function()
+					services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+					task.wait(0.1)
+					services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+				end)
+			end
+		end
+		task.wait(0.25)
+	until not tabs.boss.Data.Running
+		or tabs.boss.Data.Generation ~= generation
+		or utils.playerData.Player:GetAttribute("BossChestPending") == false
+		or not chest.Parent
+		or os.clock() - startedAt >= 12
+end
+
+tabs.boss.ContinueSwitch = tabs.boss:AddSwitch("Continue Farming after Boss Kill", function(state)
+	tabs.boss.Data.ContinueTraining = state
+	if state and tabs.boss.Data.Phase == "Waiting"
+		and (not tabs.boss.Halloween or not tabs.boss.Halloween.Data.Running) then tabs.boss.resumeTraining() end
+end)
+tabs.boss.ContinueSwitch:Set(true)
+
+task.spawn(function(model, health, maxHealth, hitbox, currentHealth, currentMaxHealth, nextTime)
+	while true do
+		model, health, maxHealth, hitbox = tabs.boss.findActiveBoss()
+		if model then
+			currentHealth = tabs.boss.getBossHealth(health)
+			currentMaxHealth = tabs.boss.getBossMaxHealth(maxHealth)
+			tabs.boss.BossLabel.Text = "Boss: " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+			tabs.boss.HealthLabel.Text = "Health: " .. utils.formatNumber(currentHealth) .. " / " .. utils.formatNumber(currentMaxHealth)
+			tabs.boss.NextBossLabel.Text = "Next Boss: Current boss active"
+		else
+			tabs.boss.BossLabel.Text = "Boss: None"
+			tabs.boss.HealthLabel.Text = "Health: 0 / 0"
+			nextTime = services.Workspace:GetAttribute("BossSpawnNextTime")
+			tabs.boss.NextBossLabel.Text = typeof(nextTime) == "number"
+				and "Next Boss: " .. tabs.boss.formatCountdown(nextTime - services.Workspace:GetServerTimeNow())
+				or "Next Boss: N/A"
+		end
+		task.wait(0.25)
+	end
+end)
+
+tabs.boss.AutoFarmSwitch = tabs.boss:AddSwitch("Auto Farm Boss", function(state)
+	if state and tabs.boss.Halloween and tabs.boss.Halloween.Data.Running then
+		tabs.boss.Halloween.AutoFarmSwitch:Set(false)
+	end
+	tabs.boss.Data.Running = state
+	tabs.boss.Data.Generation += 1
+	tabs.boss.runtime.generation = tabs.boss.Data.Generation
+	if not state then
+		tabs.boss.Data.Preparation = nil
+		tabs.boss.Data.Phase = "Waiting"
+		tabs.boss.StatusLabel.Text = "Status: Disabled"
+		tabs.boss.resumeTraining()
+		return
+	end
+
+	task.spawn(function(generation, wasFighting, model, health, maxHealth, hitbox, selected)
+		while tabs.boss.Data.Running and tabs.boss.Data.Generation == generation do
+			pcall(function()
+				model, health, maxHealth, hitbox = tabs.boss.findActiveBoss()
+				selected = model and tabs.boss.shouldFarmBoss(model)
+				if model and not selected then
+					if wasFighting or tabs.boss.Data.Preparation then
+						tabs.boss.Data.Preparation = nil
+						wasFighting = false
+						tabs.boss.resumeTraining()
+					end
+					tabs.boss.Data.Phase = "Waiting"
+					tabs.boss.StatusLabel.Text = "Status: Skipping " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+				elseif model then
+					if wasFighting and tabs.boss.needsRetraining(tabs.boss) then wasFighting = false end
+					if not wasFighting then
+						if not tabs.boss.prepareForBoss(tabs.boss) then return end
+						wasFighting = true
+						tabs.boss.Data.Phase = "Fighting"
+						tabs.boss.Data.AttackSequence = nil
+						tabs.boss.Data.EvadeUntil = 0
+						tabs.boss.Data.DodgeStomps = false
+						tabs.boss.pauseTraining()
+					end
+					if not tabs.boss.Data.Running or tabs.boss.Data.Generation ~= generation then return end
+					if tabs.boss.needsRetraining(tabs.boss) then return end
+					if utils.playerData.Player.Character
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid")
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+						tabs.boss.StatusLabel.Text = "Status: Fighting"
+						tabs.boss.attack(tabs.boss, model, health, maxHealth, hitbox)
+					else
+						tabs.boss.StatusLabel.Text = "Status: Waiting for Respawn"
+					end
+				elseif wasFighting then
+					wasFighting = false
+					tabs.boss.Data.Phase = "Collecting"
+					pcall(tabs.boss.collectChest, generation)
+					if not tabs.boss.Data.Running or tabs.boss.Data.Generation ~= generation then return end
+					tabs.boss.BossLabel.Text = "Boss: None"
+					tabs.boss.HealthLabel.Text = "Health: 0 / 0"
+					if tabs.boss.Data.ContinueTraining then tabs.boss.resumeTraining() end
+					tabs.boss.Data.Phase = "Waiting"
+					tabs.boss.StatusLabel.Text = "Status: Waiting for Boss"
+				else
+					if tabs.boss.Data.Preparation then
+						tabs.boss.Data.Preparation = nil
+						tabs.boss.resumeTraining()
+					end
+					tabs.boss.StatusLabel.Text = "Status: Waiting for Boss"
+				end
+			end)
+			task.wait(model and selected and 0.03 or 0.25)
+		end
+	end, tabs.boss.runtime.generation)
+end)
+
+tabs.boss:AddLabel("")
+
+tabs.boss:AddLabel("Halloween Boss Farming:")
+tabs.boss.Halloween = {
+	runtime = {},
+	BossLabelPrefix = "Halloween Boss: ",
+	StatusLabel = tabs.boss:AddLabel("Status: Waiting for Halloween Boss"),
+	BossLabel = tabs.boss:AddLabel("Halloween Boss: None"),
+	HealthLabel = tabs.boss:AddLabel("Health: 0 / 0"),
+	NextBossLabel = tabs.boss:AddLabel("Next Halloween Boss: Waiting for spawn"),
+	Data = {
+		Running = false,
+		Generation = 0,
+		Phase = "Waiting",
+		PunchInterval = 0.3,
+		LastPunch = 0,
+		AttackSequence = nil,
+		EvadeUntil = 0,
+		EvadeDistance = 230,
+		PunchBehindDistance = 45,
+		StompHealthThreshold = 0.35,
+		DodgeStomps = false,
+		Bosses = {
+			GrimReaper = "Grim Reaper",
+			FrankenBrute = "Frankenbrute",
+			PumpkinTitan = "Pumpkin Titan",
+			ScarecrowColossus = "Scarecrow Colossus"
+		},
+		BossOrder = {"GrimReaper", "FrankenBrute", "PumpkinTitan", "ScarecrowColossus"},
+		BossByDisplayName = {},
+		SelectedBosses = {},
+		Target = nil
+	}
+}
+
+tabs.boss.Halloween.getBossDisplayName = function(model)
+	return tabs.boss.Halloween.Data.Bosses[model:GetAttribute("BossId") or model.Name] or model.Name
+end
+
+tabs.boss.Halloween.getBossHealth = function(health, model)
+	return tonumber(model:GetAttribute("Health")) or 0
+end
+
+tabs.boss.Halloween.getBossMaxHealth = function(maxHealth, model)
+	return tonumber(model:GetAttribute("MaxHealth")) or 0
+end
+
+tabs.boss.Halloween.SelectedBossesLabel = tabs.boss:AddLabel("Targeted Halloween Bosses: All")
+tabs.boss.Halloween.updateSelectedBossesLabel = function(selectedNames)
+	selectedNames = {}
+	for _, bossId in ipairs(tabs.boss.Halloween.Data.BossOrder) do
+		if tabs.boss.Halloween.Data.SelectedBosses[bossId] then
+			table.insert(selectedNames, tabs.boss.Halloween.Data.Bosses[bossId])
+		end
+	end
+	tabs.boss.Halloween.SelectedBossesLabel.Text = "Targeted Halloween Bosses: "
+		.. (#selectedNames > 0 and table.concat(selectedNames, ", ") or "None")
+end
+
+tabs.boss.Halloween.BossDropdown = tabs.boss:AddDropdown("Target specific Halloween Bosses", function(displayName, bossId)
+	bossId = tabs.boss.Halloween.Data.BossByDisplayName[displayName]
+	if not bossId then return end
+	tabs.boss.Halloween.Data.SelectedBosses[bossId] = not tabs.boss.Halloween.Data.SelectedBosses[bossId]
+	tabs.boss.Halloween.updateSelectedBossesLabel()
+end)
+for _, bossId in ipairs(tabs.boss.Halloween.Data.BossOrder) do
+	tabs.boss.Halloween.Data.BossByDisplayName[tabs.boss.Halloween.Data.Bosses[bossId]] = bossId
+	tabs.boss.Halloween.Data.SelectedBosses[bossId] = true
+	tabs.boss.Halloween.BossDropdown:Add(tabs.boss.Halloween.Data.Bosses[bossId])
+end
+tabs.boss.Halloween.updateSelectedBossesLabel()
+
+tabs.boss.Halloween.shouldFarmBoss = function(model)
+	return tabs.boss.Halloween.Data.SelectedBosses[model:GetAttribute("BossId") or model.Name] == true
+end
+
+tabs.boss.Halloween.findActiveBoss = function(selectedOnly, model, hitbox, candidateHitbox, character, root, distance, closestDistance)
+	character = utils.playerData.Player.Character
+	root = character and character:FindFirstChild("HumanoidRootPart")
+	closestDistance = math.huge
+	for _, candidate in ipairs(services.CollectionService:GetTagged("HalloweenBoss")) do
+		if candidate:IsA("Model") and candidate:IsDescendantOf(services.Workspace)
+			and tabs.boss.Halloween.getBossHealth(nil, candidate) > 0
+			and (not selectedOnly or tabs.boss.Halloween.shouldFarmBoss(candidate)) then
+			candidateHitbox = candidate:FindFirstChild("BossDamageHitbox", true)
+				or candidate.PrimaryPart or candidate:FindFirstChild("HumanoidRootPart")
+			if candidateHitbox and candidateHitbox:IsA("BasePart") then
+				if selectedOnly and candidate == tabs.boss.Halloween.Data.Target then
+					return candidate, nil, nil, candidateHitbox
+				end
+				distance = root and (root.Position - candidateHitbox.Position).Magnitude or 0
+				if not model or distance < closestDistance then
+					model, hitbox, closestDistance = candidate, candidateHitbox, distance
+				end
+			end
+		end
+	end
+	return model, nil, nil, hitbox
+end
+
+task.spawn(function(model)
+	while true do
+		model = tabs.boss.Halloween.Data.Target
+		if not model or not model.Parent or tabs.boss.Halloween.getBossHealth(nil, model) <= 0 then
+			model = tabs.boss.Halloween.findActiveBoss()
+		end
+		if model then
+			tabs.boss.Halloween.BossLabel.Text = "Halloween Boss: " .. tabs.boss.Halloween.getBossDisplayName(model)
+			tabs.boss.Halloween.HealthLabel.Text = "Health: " .. utils.formatNumber(tabs.boss.Halloween.getBossHealth(nil, model))
+				.. " / " .. utils.formatNumber(tabs.boss.Halloween.getBossMaxHealth(nil, model))
+			tabs.boss.Halloween.NextBossLabel.Text = "Next Halloween Boss: Current boss active"
+		else
+			tabs.boss.Halloween.BossLabel.Text = "Halloween Boss: None"
+			tabs.boss.Halloween.HealthLabel.Text = "Health: 0 / 0"
+			tabs.boss.Halloween.NextBossLabel.Text = "Next Halloween Boss: Waiting for spawn"
+		end
+		task.wait(0.25)
+	end
+end)
+
+tabs.boss.Halloween.AutoFarmSwitch = tabs.boss:AddSwitch("Auto Farm Halloween Boss", function(state)
+	if state and tabs.boss.Data.Running then tabs.boss.AutoFarmSwitch:Set(false) end
+	tabs.boss.Halloween.Data.Running = state
+	tabs.boss.Halloween.Data.Generation += 1
+	if not state then
+		tabs.boss.Halloween.Data.Preparation = nil
+		tabs.boss.Halloween.Data.Target = nil
+		tabs.boss.Halloween.Data.Phase = "Waiting"
+		tabs.boss.Halloween.StatusLabel.Text = "Status: Disabled"
+		tabs.boss.resumeTraining()
+		return
+	end
+
+	task.spawn(function(generation, wasFighting, model, health, maxHealth, hitbox)
+		while tabs.boss.Halloween.Data.Running and tabs.boss.Halloween.Data.Generation == generation do
+			pcall(function()
+				model, health, maxHealth, hitbox = tabs.boss.Halloween.findActiveBoss(true)
+				if model then
+					if wasFighting and tabs.boss.needsRetraining(tabs.boss.Halloween) then wasFighting = false end
+					if not wasFighting then
+						if not tabs.boss.prepareForBoss(tabs.boss.Halloween) then return end
+						wasFighting = true
+						tabs.boss.pauseTraining()
+					end
+					if not tabs.boss.Halloween.Data.Running or tabs.boss.Halloween.Data.Generation ~= generation then return end
+					if tabs.boss.needsRetraining(tabs.boss.Halloween) then return end
+					if tabs.boss.Halloween.Data.Target ~= model then
+						tabs.boss.Halloween.Data.Target = model
+						tabs.boss.Halloween.Data.AttackSequence = nil
+						tabs.boss.Halloween.Data.EvadeUntil = 0
+						tabs.boss.Halloween.Data.DodgeStomps = false
+					end
+					tabs.boss.Halloween.Data.Phase = "Fighting"
+					if utils.playerData.Player.Character
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid")
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+						tabs.boss.Halloween.StatusLabel.Text = "Status: Fighting"
+						tabs.boss.attack(tabs.boss.Halloween, model, health, maxHealth, hitbox)
+					else
+						tabs.boss.Halloween.StatusLabel.Text = "Status: Waiting for Respawn"
+					end
+				else
+					tabs.boss.Halloween.Data.Target = nil
+					tabs.boss.Halloween.Data.Phase = "Waiting"
+					if tabs.boss.Halloween.Data.Preparation then
+						tabs.boss.Halloween.Data.Preparation = nil
+						tabs.boss.resumeTraining()
+					elseif wasFighting then
+						tabs.boss.resumeTraining()
+					end
+					wasFighting = false
+					tabs.boss.Halloween.StatusLabel.Text = "Status: Waiting for Halloween Boss"
+				end
+			end)
+			task.wait(model and 0.03 or 0.25)
+		end
+	end, tabs.boss.Halloween.Data.Generation)
 end)
 
 -- Strength Tab (For bad devices)
