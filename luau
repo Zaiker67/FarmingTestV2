@@ -296,7 +296,7 @@ local silence = library:AddWindow("M14EBR | Paid Version - Fast Farming", {
     background = {Color3.fromRGB(40, 40, 40), Color3.fromRGB(0, 0, 0), Color3.fromRGB(80, 80, 80)},
     background_transparency = 0.1,
     main_color = Color3.fromRGB(128, 128, 128),
-    min_size = Vector2.new(500, 400),
+    min_size = Vector2.new(500, 560),
     can_resize = false
 })
 local privacyRedactor = createPrivacyRedactor(lp.player, "Farming")
