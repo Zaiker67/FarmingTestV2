@@ -1724,10 +1724,16 @@ end
 
 function equipPetsByName(name)
     unequipPets()
-    task.wait(0.01)
-    for _, pet in pairs(lp.player.petsFolder.Unique:GetChildren()) do
-        if pet.Name == name then
-            services.replicatedstorage.rEvents.equipPetEvent:FireServer("equipPet", pet)
+    task.wait(0.1) -- Slightly increased to ensure server registers the unequip request
+    
+    -- Iterate through ALL rarity folders (Basic, Advanced, Rare, Unique, Epic, etc.)
+    for _, folder in pairs(lp.player.petsFolder:GetChildren()) do
+        if folder:IsA("Folder") then
+            for _, pet in pairs(folder:GetChildren()) do
+                if pet.Name == name then
+                    services.replicatedstorage.rEvents.equipPetEvent:FireServer("equipPet", pet)
+                end
+            end
         end
     end
 end
