@@ -1,6 +1,6 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local whitelistURL = "https://raw.githubusercontent.com/Zaiker67/Whitelist.Players/refs/heads/main/Whitelist.lua"
+local whitelistURL = "https://raw.githubusercontent.com/Zaiker67/WhitelistPaid/refs/heads/main/WhitelistedPlayers-Paid.lua"
 local whitelist = {}
 
 local function isPlayerValid()
